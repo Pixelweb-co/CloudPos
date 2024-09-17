@@ -75,15 +75,6 @@ Sigue estos pasos para instalar el plugin y el tema en tu sitio de WordPress:
   
 - **Tema**: El tema `wp-bootstrap-starter` proporciona un diseño adaptado para el sistema de pedidos. Asegúrate de revisar la documentación del tema para aprovechar al máximo sus características.
 
-### Contribuciones
-
-Si quieres contribuir a este proyecto, por favor sigue estos pasos:
-
-1. Haz un fork del repositorio.
-2. Crea una rama para tus cambios (`git checkout -b feature/mi-cambio`).
-3. Realiza tus cambios y haz commit (`git commit -am 'Añadido nuevo feature'`).
-4. Empuja tus cambios a tu fork (`git push origin feature/mi-cambio`).
-5. Crea un pull request en GitHub.
 
 ### Soporte
 
