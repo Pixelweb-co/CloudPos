@@ -80,6 +80,9 @@ Sigue estos pasos para instalar el plugin y el tema en tu sitio de WordPress:
 
 Si encuentras algún problema o necesitas asistencia, por favor abre un **issue** en el repositorio de GitHub o contacta con el desarrollador a través de [tu dirección de contacto].
 
+###Diagrama de la base de datos
+cristal.pdf
+
 ### Licencia
 
 Este proyecto está licenciado bajo la [Licencia MIT](LICENSE).
