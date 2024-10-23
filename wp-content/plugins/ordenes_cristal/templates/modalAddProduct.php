@@ -20,8 +20,16 @@
                    
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Código</label>
+                                <label>Código sap</label>
                                 <input type="text" name="codigo_sap" class="form-control">
+                            </div>
+                            <div class="form-group"> 
+                                <label>Tipo imputación</label>
+                                <input type="text" name="tipo_imputacion" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>Cuenta</label>
+                                <input type="text" name="cuenta" class="form-control">
                             </div>
                             <div class="form-group">
                                 <label for="post_title">Nombre</label>
@@ -31,6 +39,8 @@
                                 <label>Descripción</label>
                                 <textarea name="post_content" class="form-control"></textarea>
                             </div>
+
+                            
                             <!-- <div class="form-group">
                                 <label>Marca
 

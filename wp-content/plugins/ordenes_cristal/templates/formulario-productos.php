@@ -42,6 +42,12 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="cuenta">Tipo de imputacion</label>
+                        <input type="text" name="tipo_imputacion" id="tipo_imputacion" value="<?php echo esc_attr($material_edit->tipo_imputacion); ?>" class="form-control" data-validation="required">
+                        <div class="error-message" id="error-tipo_imputacion"></div>
+                    </div>
+
+                    <div class="form-group">
                         <label for="post_title">Título</label>
                         <input type="text" name="post_title" id="post_title" value="<?php echo esc_attr($material_edit->post_title); ?>" class="form-control" data-validation="required">
                         <div class="error-message" id="error-post_title"></div>
@@ -107,14 +113,16 @@
                         <select name="categorias[]" id="categorias" class="form-control" multiple="multiple" data-validation="required">
 
                         <?php foreach (explode(',',$material_edit->categorias) as $categoria){ 
-                            
+                         
+                         if(!empty($categoria)){
                          $catda = findCategorytById($categoria,$cats);       
                             
                         ?>
-                    
+                           
                             <option value="<?=$catda->id?>" selected><?=$catda->nombre?></option>
                     
-                        <?php } ?> 
+                        <?php }
+                    } ?> 
                         
                     </select>
                         <div class="error-message" id="error-categorias"></div>
@@ -369,28 +377,48 @@ $("#product_form").submit(function (e) {
   })  
   
     $("#product_form").validate({
+    debug: true,
     errorPlacement: function (error, element) {
       error.insertAfter(element);
     },
     rules: {
         codigo_sap: {
                 required: true,
-                
+                email:false,
                 <?php if ($action != 'edit'){ ?>
                 
                 remote: {
                     url: '<?php echo admin_url('admin-ajax.php'); ?>', // URL de AJAX desde la localización de script
                     type: "post",
+                    dataType: 'json',
                     data: {
                         action: 'validate_codigo_sap', // Acción definida en el servidor
                         codigo_sap: function() {
                             return $("#codigo_sap").val();
                         }
                     },
+                    dataFilter: function (data) {
+                        if (data) {
+                            var json = JSON.parse(data);
+
+                                console.log("json",json);
+                        
+                                if(json.success){
+                                    return true
+                                }else{
+                                 //   alert(json.data);
+                                    return false;
+                                }
+
+                            }
+                    },
                     complete: function(response) {
-                        console.log(response.responseJSON   ); // Verifica la respuesta en la consola
-                        if(!response.responseJSON.success){
-                            alert(response.responseJSON.data)
+                        console.log("rs ",response.responseJSON   ); // Verifica la respuesta en la consola
+                        
+                        
+                        
+                        if(!response.responseJSON){
+                       //     alert(response.responseJSON.data)
                         }
                     }
                 }
@@ -408,7 +436,10 @@ $("#product_form").submit(function (e) {
     },
     messages: {
      
-      codigo_sap:"Este código SAP es requerido o ya existe en la base de datos.",
+      codigo_sap:{
+        remote:"Este código SAP Ya existe en la base de datos.",
+        required:"Este dato es requerido"
+    },
       cuenta:"Ingrese el número de cuenta",
       order:"Se requiere un consecutivo",
       post_title: "Por favor, ingrese el nombre",
@@ -460,6 +491,7 @@ $("#product_form").submit(function (e) {
 
 
                     formData.append('cuenta',jQuery("#product_form input[name='cuenta']").val());
+                    formData.append('tipo_imputacion',jQuery("#product_form input[name='tipo_imputacion']").val());
 
                     //formData.append('sku',jQuery("#product_form input[name='sku']").val());
                     formData.append('codigo_sap',jQuery("#product_form input[name='codigo_sap']").val());
@@ -559,9 +591,23 @@ $("#product_form").submit(function (e) {
             .scope();
 
             scope.$apply(function () {
+
+
                 scope.addItem({id:e.params.args.data.id,text:e.params.args.data.text});
             });
 
+
+    }).on('select2:unselecting', function(e){
+        console.log('Unselecting')
+
+        var scope = angular
+            .element(document.getElementById("consecutivo_marca"))
+            .scope();
+
+            scope.$apply(function () {
+
+                scope.removeItem({id:e.params.args.data.id}); 
+            });
 
     })
 
@@ -689,6 +735,10 @@ app.controller('consecutivo_marca', ['$scope', function($scope) {
 
         console.log("item", item)
 
+        var found = $scope.items.find((item) => item.id === item.id);
+
+        if(!found){
+
         jQuery.ajax({
                         type: "POST",
                         url: "<?php echo admin_url('admin-ajax.php'); ?>",
@@ -712,12 +762,14 @@ app.controller('consecutivo_marca', ['$scope', function($scope) {
                         }
             });
 
+        }
 
     }
 
     $scope.removeItem = function(itemId) {
+        console.log("remove item",itemId);
         $scope.items = $scope.items.filter(function(item) {
-            return item.id !== itemId;
+            return item.id !== itemId.id;
         });
     }
 

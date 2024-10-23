@@ -42,9 +42,9 @@
                                         <img ng-src="{{x.image_url}}" alt="" class="mCS_img_loaded">
                                     </div>
                                     <div class="name-product">
-                                    {{x.ID}}    
+                                       
                                     <p>{{x.post_title}}</p>
-
+                                    <b>Codigo sap:</b> {{x.codigo_sap}}<br />    
                                         <b>Cuenta:</b> {{x.cuenta}}<br />
                                         <b>Categoria:</b> <span ng-repeat="cx in x.categorias" class="mr-2">{{cx.name}}</span>
                                     </div>

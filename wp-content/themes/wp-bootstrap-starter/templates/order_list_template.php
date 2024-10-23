@@ -95,7 +95,7 @@ $categorias = obtener_categorias();
                                                     <tr>
                                                         <td><img src="<?=$item->image_url?>" style="height:50px; width:70px"/></td>
                                                         <td><?=$item->post_title?></td>
-                                                        <td><?=$item->sku?></td>
+                                                        <td><?=$item->codigo_sap?></td>
                                                         <td>$<?=number_format($item->price)?></td>
                                                         <td style="text-align: center; width:15%"><?=$item->cnt?></td>
                                                     </tr>

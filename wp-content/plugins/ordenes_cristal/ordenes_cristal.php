@@ -1347,7 +1347,8 @@ function buscar_productos($nombre = '', $marca_id = null, $categoria_id = null, 
             'marca' => $producto->marca,
             'observacion' => $producto->observacion,
             'tipo' => $producto->tipo,
-            'related' => $producto->related
+            'related' => $producto->related,
+            'tipo_imputacion' => $producto->tipo_imputacion
         );
     }
 
@@ -1383,106 +1384,6 @@ function buscar_productos($nombre = '', $marca_id = null, $categoria_id = null, 
 }
 
 
-function buscar_productos21($nombre = '', $marca_id = null, $categoria_id = null, $tienda_id = null, $paged = 1, $term = '')
-{
-    global $wpdb;
-
-    $tabla_productos = 'productos';
-    $tabla_materiales_relacionados = 'wp_materiales_relacionados';
-
-
-    // Construir la condición de filtrado por categoría
-    $categoria_filter = "";
-    if ($categoria_id !== null) {
-        $categoria_filter = " WHERE p.categorias LIKE '%" . $categoria_id . "%'";
-    }
-
-    $marca_filter = '';
-    if ($marca_id !== null) {
-        $marca_filter = " AND p.marca LIKE '%" . $marca_id . "%'";
-    }
-
-    $sqlb = "SELECT * ,ifNull(( SELECT consecutivo FROM consecutivos_materiales u WHERE u.id_material = p.id and u.id_marca = '$marca_id'),'1') AS consecutivo from $tabla_productos p $categoria_filter $marca_filter";
-
-
-    $sqlw = "";
-
-    $for_page = 5; //option later used
-    $offset = ($paged - 1) * $for_page;
-
-    if (!empty($term)) {
-        $sqlw = " AND (post_title LIKE '%" . $term . "%' OR codigo_sap LIKE '%" . $term . "%')";
-    } else {
-        if ($marca_id !== null) {
-            $sqlw = " AND marca LIKE '%" . $marca_id . "%'";
-        }
-    }
-
-    // Construir la consulta completa con paginación
-    $sql = $sqlb . ' ORDER BY `consecutivo` ASC ' . " LIMIT $offset, $for_page";
-
-
-
-    $product_list = $wpdb->get_results($sql, OBJECT);
-    $productos_con_info = array();
-
-    $items_categorias = get_categories_relation_data();
-
-    foreach ($product_list as $producto) {
-        $cats_format = [];
-        $cat_p = explode(',', $producto->categorias);
-        foreach ($cat_p as $cat) {
-            $cat_sel = findCategorytById($cat, $items_categorias);
-            if (isset($cat_sel->id)) {
-                $cats_format[] = (object) array('term_id' => $cat_sel->id, 'name' => $cat_sel->nombre);
-            }
-        }
-
-        $productos_con_info[] = array(
-            'ID' => $producto->id,
-            'post_title' => $producto->post_title,
-            'post_content' => $producto->post_content,
-            'order' => $producto->consecutivo,
-            'price' => $producto->price,
-            'image_url' => $producto->image_url,
-            'thumbnail_prod' => $producto->thumbnail_prod,
-            'codigo_sap' => $producto->codigo_sap,
-            'cuenta' => $producto->cuenta,
-            'categorias' => $cats_format, // Agregar las categorías del producto al resultado
-            'marca' => $producto->marca,
-            'observacion' => $producto->observacion,
-            'tipo' => $producto->tipo
-        );
-    }
-
-    // Obtener el número total de productos para calcular el número de páginas
-    $total_sql = "
-      SELECT COUNT(*) FROM (
-          SELECT p.id
-          FROM $tabla_productos p
-          LEFT JOIN $tabla_materiales_relacionados mr1 ON p.id = mr1.id_padre
-          LEFT JOIN $tabla_materiales_relacionados mr2 ON p.id = mr2.id_material
-          WHERE mr1.id_padre IS NULL AND mr2.id_material IS NULL $categoria_filter $marca_filter $sqlw
-
-          UNION
-
-          SELECT p.id
-          FROM $tabla_productos p
-          INNER JOIN $tabla_materiales_relacionados mr ON p.id = mr.id_padre
-          WHERE p.id NOT IN (
-              SELECT id_material FROM $tabla_materiales_relacionados
-          ) $categoria_filter $marca_filter $sqlw
-      ) AS combined
-  ";
-
-
-    $total_products = $wpdb->get_var($total_sql);
-    $num_pages = ceil($total_products / $for_page);
-
-    return ['productos' => $productos_con_info, 'num_pages' => $num_pages, 'for_page' => $for_page];
-
-    die();
-}
 
 
 
@@ -1504,94 +1405,6 @@ function get_categories_relation_data()
 }
 
 
-function buscar_productosWoo($nombre = '', $marca_id = null, $categoria_id = null, $tienda_id = null, $paged = 1, $term = '')
-{
-    global $wpdb;
-    $for_page = 5; // Opciones luego usadas
-
-    $args = array(
-        'post_type' => 'product',
-        'posts_per_page' => $for_page,
-        'paged'  => $paged,
-        'orderby' => 'menu_order',
-        'order' => 'ASC',
-        'post_status' => 'publish',
-    );
-
-    // Configurar las consultas de meta y taxonomía
-    $meta_query = array();
-    $tax_query = array();
-
-    // Condición de búsqueda por marca si se proporciona
-    if ($marca_id !== null) {
-        $meta_query[] = array(
-            'key' => '_marca_producto',
-            'value' => sprintf(':"%s";', $marca_id),
-            'compare' => 'LIKE'
-        );
-    }
-
-    // Condición de búsqueda por categoría si se proporciona
-    if ($categoria_id !== null) {
-        $tax_query[] = array(
-            'taxonomy' => 'product_cat',
-            'field' => 'term_id',
-            'terms' => $categoria_id
-        );
-    }
-
-    // Agregar consultas a los argumentos si no están vacías
-    if (!empty($meta_query)) {
-        $args['meta_query'] = $meta_query;
-    }
-
-    if (!empty($tax_query)) {
-        $args['tax_query'] = $tax_query;
-    }
-
-    // Realizar la consulta
-    $productos = new WP_Query($args);
-
-    // Depurar la consulta generada
-    error_log(print_r($args, true));
-
-    // Obtener la información (precio, imagen, SKU y categorías) para cada producto
-    $productos_con_info = array();
-    foreach ($productos->posts as $producto) {
-        $precio_producto = get_post_meta($producto->ID, '_price', true);
-        $imagen_producto_id = get_post_thumbnail_id($producto->ID);
-        $imagen_producto_url = wp_get_attachment_url($imagen_producto_id);
-        $imagen_miniatura = get_the_post_thumbnail_url($producto->ID, 'thumbnail');
-        $sku_producto = get_post_meta($producto->ID, '_sku', true);
-        $marca_id_producto = get_post_meta($producto->ID, '_marca_producto', true);
-
-        // Obtener las categorías asociadas al producto con todos los campos y metacampos
-        $categorias_producto = wp_get_post_terms($producto->ID, 'product_cat');
-        $categorias_producto_info = array();
-        foreach ($categorias_producto as $categoria_producto) {
-            $categoria_info = get_term_by('id', $categoria_producto->term_id, 'product_cat');
-            $categorias_producto_info[] = $categoria_info;
-        }
-
-        $productos_con_info[] = array(
-            'ID' => $producto->ID,
-            'post_title' => $producto->post_title,
-            'post_content' => $producto->post_content,
-            'order' => $producto->menu_order,
-            'price' => $precio_producto,
-            'image_url' => $imagen_producto_url,
-            'thumbnail_prod' => $imagen_miniatura,
-            'cnt' => 0,
-            'sku' => $sku_producto,
-            'categorias' => $categorias_producto_info,
-            'marca' => $marca_id_producto,
-            'observacion' => ''
-        );
-    }
-
-    return ['productos' => $productos_con_info, 'num_pages' => $productos->max_num_pages, 'for_page' => $for_page];
-}
-
 
 
 add_filter('posts_request', function ($query) {
@@ -1599,214 +1412,6 @@ add_filter('posts_request', function ($query) {
     return $query;
 });
 
-
-function buscar_productos_nwd($nombre = '', $marca_id = null, $categoria_id = null, $tienda_id, $paged = 1, $term = '')
-{
-    global $wpdb;
-    $for_page = 5; // Opciones luego usadas
-
-    $args = array(
-        'post_type' => 'product',
-        'posts_per_page' => $for_page,
-        'paged'  => $paged,
-        'orderby' => 'menu_order',
-        'order' => 'ASC',
-        'post_status' => 'publish',
-    );
-
-    $posts_found = array();
-
-    if (!empty($term)) {
-        $sql = "SELECT wp_posts.ID FROM wp_posts LEFT JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE post_type = 'product' AND (wp_posts.post_title LIKE '%$term%' OR (wp_postmeta.meta_key = '_sku' AND wp_postmeta.meta_value LIKE '%$term%')) GROUP BY wp_posts.ID;";
-        $registros_existente = $wpdb->get_results($sql, OBJECT);
-
-        foreach ($registros_existente as $item) {
-            $posts_found[] = $item->ID;
-        }
-
-        $args['post__in'] = $posts_found;
-    }
-
-    if ($marca_id !== null || $categoria_id !== null) {
-        $args['tax_query'] = array('relation' => 'AND');
-
-        // Condición de búsqueda por marca si se proporciona
-        if ($marca_id !== null) {
-            $args['meta_query'][] = array(
-                'key' => '_marca_producto',
-                'value' => array($marca_id),
-                'compare' => 'IN'
-            );
-
-            //   print_r($args['meta_query']);
-        }
-
-        // Condición de búsqueda por categoría si se proporciona
-        if ($categoria_id !== null) {
-            $args['tax_query'][] = array(
-                'taxonomy' => 'product_cat',
-                'field' => 'term_id',
-                'terms' => $categoria_id
-            );
-        }
-    }
-
-    ob_start();
-
-    // Realizar la consulta
-    $productos = new WP_Query($args);
-
-    // Obtener la información (precio, imagen, SKU y categorías) para cada producto
-    $productos_con_info = array();
-    foreach ($productos->posts as $producto) {
-        $precio_producto = get_post_meta($producto->ID, '_price', true);
-        $imagen_producto_id = get_post_thumbnail_id($producto->ID);
-        $imagen_producto_url = wp_get_attachment_url($imagen_producto_id);
-        $imagen_miniatura = get_the_post_thumbnail_url($producto->ID, 'thumbnail');
-        $sku_producto = get_post_meta($producto->ID, '_sku', true);
-        $marca_id_producto = get_post_meta($producto->ID, '_marca_producto', true);
-
-        // Obtener las categorías asociadas al producto con todos los campos y metacampos
-        $categorias_producto = wp_get_post_terms($producto->ID, 'product_cat');
-        $categorias_producto_info = array();
-        foreach ($categorias_producto as $categoria_producto) {
-            $categoria_info = get_term_by('id', $categoria_producto->term_id, 'product_cat');
-            $categorias_producto_info[] = $categoria_info;
-        }
-
-        $productos_con_info[] = array(
-            'ID' => $producto->ID,
-            'post_title' => $producto->post_title,
-            'post_content' => $producto->post_content,
-            'order' => $producto->menu_order,
-            'price' => $precio_producto,
-            'image_url' => $imagen_producto_url,
-            'thumbnail_prod' => $imagen_miniatura,
-            'cnt' => 0,
-            'sku' => $sku_producto,
-            'categorias' => $categorias_producto_info,
-            'marca' => $marca_id_producto,
-            'observacion' => ''
-        );
-    }
-
-    return ['productos' => $productos_con_info, 'num_pages' => $productos->max_num_pages, 'for_page' => $for_page];
-}
-
-
-
-
-function buscar_productos2($nombre = '', $marca_id = null, $categoria_id = null, $tienda_id, $paged = 1, $term = '')
-{
-    global $wpdb;
-    $for_page = 5; //option later used
-
-    $args = array(
-        'post_type' => 'product',
-        'posts_per_page' => $for_page, // Obtener todos los productos
-        'paged'  => $paged,
-        'orderby' => 'menu_order', // Ordenar por menu_order
-        'order' => 'ASC', // Orden ascendente
-        'paginate' => true,
-        'post_status'    => 'publish',
-    );
-
-
-    $posts_found = array();
-
-    if (!empty($term)) {
-
-        $sql = "SELECT wp_posts.ID FROM wp_posts LEFT JOIN wp_postmeta ON wp_posts.ID = wp_postmeta.post_id WHERE post_type = 'product' AND wp_posts.post_title LIKE '%$term%' OR (wp_postmeta.meta_key = '_sku' AND wp_postmeta.meta_value LIKE '%$term%') GROUP BY wp_posts.ID;";
-
-        $registros_existente = $wpdb->get_results($sql, OBJECT);
-
-        foreach ($registros_existente as $item) { //
-            $posts_found[] = $item->ID;
-        }
-
-        $args['post__in'] = $posts_found;
-    } else {
-
-
-        if ($marca_id !== null || $categoria_id !== null) {
-
-            $args['tax_query'] = array('relation' => 'AND'); // Relación AND para ambas condiciones
-
-            // Condición de búsqueda por marca si se proporciona
-            if ($marca_id !== null) {
-                //echo "por marca ".$marca_id;
-                $args['meta_query'] = array(
-                    array(
-                        'key' => '_marca_producto', // Clave del metadato de la marca
-                        'value' => array($marca_id), // ID de la marca específica
-                        'compare' => 'IN' // Comparación de igualdad
-                    )
-                );
-
-                //  print_r($args['meta_query']);
-            }
-
-            // Condición de búsqueda por categoría si se proporciona
-            if ($categoria_id !== null) {
-                //echo "por categoria ".$categoria_id;
-                $args['tax_query'] = array(
-                    array(
-                        'taxonomy' => 'product_cat', // Taxonomía de categorías de productos
-                        'field'    => 'term_id', // Campo a buscar
-                        'terms'    => $categoria_id // ID de la categoría específica
-                    )
-                );
-            }
-        }
-    }
-
-    ob_start();
-
-    // Realizar la consulta
-    $productos = new WP_Query($args);
-
-
-    // Obtener la información (precio, imagen, SKU y categorías) para cada producto
-    $productos_con_info = array();
-    foreach ($productos->posts as $producto) {
-        $precio_producto = get_post_meta($producto->ID, '_price', true);
-        $imagen_producto_id = get_post_thumbnail_id($producto->ID);
-        $imagen_producto_url = wp_get_attachment_url($imagen_producto_id);
-        $imagen_miniatura = get_the_post_thumbnail_url($producto->ID, 'thumbnail');
-        $sku_producto = get_post_meta($producto->ID, '_sku', true); // Obtener el SKU del producto
-        $marca_id_producto = get_post_meta($producto->ID, '_marca_producto', true);
-
-        // Obtener las categorías asociadas al producto con todos los campos y metacampos
-        $categorias_producto = wp_get_post_terms($producto->ID, 'product_cat');
-
-        // Almacenar la información relevante de cada categoría asociada al producto
-        $categorias_producto_info = array();
-        foreach ($categorias_producto as $categoria_producto) {
-            // Obtener todos los detalles de la categoría, incluidos los metacampos
-            $categoria_info = get_term_by('id', $categoria_producto->term_id, 'product_cat');
-            $categorias_producto_info[] = $categoria_info;
-        }
-
-
-
-        $productos_con_info[] = array(
-            'ID' => $producto->ID,
-            'post_title' => $producto->post_title,
-            'post_content' => $producto->post_content,
-            'order' => $producto->menu_order,
-            'price' => $precio_producto,
-            'image_url' => $imagen_producto_url,
-            'thumbnail_prod' => $imagen_miniatura,
-            'cnt'   => 0,
-            'sku' => $sku_producto,
-            'categorias' => $categorias_producto_info, // Agregar las categorías del producto al resultado
-            'marca' => $marca_id_producto,
-            'observacion' => ''
-        );
-    }
-
-    return ['productos' => $productos_con_info, 'num_pages' => $productos->max_num_pages, 'for_page' => $for_page];
-}
 
 
 
@@ -2086,6 +1691,7 @@ function save_material()
     $post_title = sanitize_text_field($_POST['post_title']);
     $codigo_sap = sanitize_text_field($_POST['codigo_sap']);
     $cuenta = sanitize_text_field($_POST['cuenta']);
+    $tipo_imputacion = sanitize_text_field($_POST['tipo_imputacion']);
     $order = sanitize_text_field($_POST['order']);
     $price = sanitize_text_field($_POST['price']);
     $marca = sanitize_text_field($_POST['marca']);
@@ -2140,6 +1746,7 @@ function save_material()
         $data = array(
             'codigo_sap' => $codigo_sap,
             'cuenta' => $cuenta,
+            'tipo_imputacion' => $tipo_imputacion,
             'order' => $order,
             'post_title' => $post_title,
             'price' => $price,
@@ -2156,6 +1763,7 @@ function save_material()
         $data = array(
             'codigo_sap' => $codigo_sap,
             'cuenta' => $cuenta,
+            'tipo_imputacion' => $tipo_imputacion,
             'order' => $order,
             'post_title' => $post_title,
             'price' => $price,
@@ -2211,8 +1819,13 @@ function save_material()
 
                 if (!empty($temp_array)) {
                     $consecutivo_m[] = $temp_array;
+
+
                 }
             }
+
+
+
         } else {
             $consecutivos = [];
         }
@@ -2281,6 +1894,8 @@ function save_material()
                     '%d'  // consecutivo
                 )
             );
+        
+      //  echo $wpdb->last_error;
         }
 
 
@@ -2562,6 +2177,7 @@ function handle_order_save_request($request)
                             'categorias' => json_encode($item->categorias),
                             'subtotal' => $item->subtotal,
                             'codigo_sap' => $item->codigo_sap,
+                            'tipo_imputacion' => $item->tipo_imputacion,
                             'image_url' => $item->image_url
                         )
                     );
@@ -2626,12 +2242,13 @@ function handle_order_save_request($request)
                                 'categorias' => json_encode($item->categorias),
                                 'subtotal' => $item->subtotal,
                                 'codigo_sap' => $item->codigo_sap,
+                                'tipo_imputacion' => $item->tipo_imputacion,
                                 'image_url' => $item->image_url
                             )
                         );
                     }
 
-                    echo $wpdb->last_error;
+                    //echo $wpdb->last_error;
                     //mail_order($order_id);   
                     return array('success' => true, 'message' => 'Order saved successfully', 'order_id' => $order_id);
                 } else {
@@ -3655,7 +3272,11 @@ function materiales_admin_form($action, $id)
 
     if ($action == 'edit') {
 
+
         $parent_id = $id;
+
+        
+    $material_edit = $wpdb->get_row("SELECT * FROM $tabla_materiales WHERE id = '$id'");
 
 
 
@@ -3678,8 +3299,8 @@ function materiales_admin_form($action, $id)
     ", OBJECT);
 
 
-        $material_marca_id = explode(',', $material->marca);
-
+        $material_marca_id = explode(',', $material_edit->marca);
+       
 
         $cons = 1;
 
@@ -3690,13 +3311,15 @@ function materiales_admin_form($action, $id)
         foreach ($material_marca_id as $consecutivo_marca) {
 
             foreach ($marcas as $marca) {
-
+         
                 $orden_nw = $wpdb->get_row("SELECT MAX(`consecutivo`) AS consecutivo FROM consecutivos_materiales WHERE id_marca = '$marca[ID]'", OBJECT);
+
+                
 
                 if ($consecutivo_marca == $marca['ID']) {
 
                     $consecutivo_data = $wpdb->get_row("SELECT * FROM consecutivos_materiales WHERE id_material = '$id' and id_marca = '$marca[ID]'", OBJECT);
-                    //print_r( $consecutivo_data);
+                  
                     if (isset($consecutivo_data) && (int) $consecutivo_data->consecutivo > 1) {
                         $cons = $consecutivo_data->consecutivo;
                     } else {
@@ -3709,8 +3332,6 @@ function materiales_admin_form($action, $id)
             }
         }
     }
-
-    $material_edit = $wpdb->get_row("SELECT * FROM $tabla_materiales WHERE id = '$id'");
 
 
     $orden_nw = $wpdb->get_row("SELECT MAX(`order`) AS order_max FROM productos", OBJECT);
@@ -4026,91 +3647,6 @@ add_action('rest_api_init', 'register_custom_endpoints');
 
 
 
-function get_formulas_grouped_by_world2()
-{
-    global $wpdb;
-
-
-    // Obtenemos la marca asociada al producto a través de $_POST['marca']
-    $marca_id = isset($_GET['marca']) ? sanitize_text_field($_GET['marca']) : '';
-
-
-    // Obtenemos los mundos relacionados con la marca seleccionada
-    $mundos = get_posts(array(
-        'post_type' => 'mundos',
-        'posts_per_page' => -1,
-        'meta_query' => array(
-            array(
-                'key' => '_marca_mundo',
-                'value' => $marca_id,
-                'compare' => '='
-            )
-        )
-    ));
-
-
-
-    $edit = $_GET['herraje'];
-    $marca = $_GET['marca'];
-
-    $holgurasd = $wpdb->get_row("SELECT holgura_f, holgura_p FROM holguras_herrajes WHERE id_herraje = '$edit' and id_marca = '$marca'", OBJECT);
-
-    if (!$holgurasd) {
-        $holguras = (object)['holgura_f' => '', 'holgura_p' => ''];
-    } else {
-        $holguras = (object)['holgura_f' => $holgurasd->holgura_f, 'holgura_p' => $holgurasd->holgura_p];
-    }
-
-    $formulas_grouped_by_world = array();
-
-
-    foreach ($mundos as $mundo) {
-
-
-
-        $formulas = get_posts(array(
-            'post_type' => 'formulas',
-            'posts_per_page' => -1,
-            'meta_query' => array(
-                array(
-                    'key' => '_relacionar_mundos',
-                    'value' => $mundo->ID,
-                    'compare' => 'LIKE'
-                )
-            )
-        ));
-
-        $mundo_data = array(
-            'ID' => $mundo->ID,
-            'title' => $mundo->post_title,
-            'link' => get_permalink($mundo->ID),
-            'color' => get_post_meta($mundo->ID, '_mundo_color', true),
-            'formulas' => array()
-        );
-
-        foreach ($formulas as $formula) {
-
-            $sql = "SELECT cantidad_defecto FROM formulas_herrajes WHERE id_herraje = '$edit' and id_marca = '$marca' and id_mundo = '$mundo->ID' and id_formula = '$formula->ID'";
-
-            $cantidad_seteada_defecto = $wpdb->get_row($sql);
-
-
-
-            $mundo_data['formulas'][] = array(
-                'ID' => $formula->ID,
-                'title' => $formula->post_title,
-                'content' => $formula->post_content,
-                'link' => get_permalink($formula->ID),
-                'cnt' => !empty($cantidad_seteada_defecto->cantidad_defecto) ? $cantidad_seteada_defecto->cantidad_defecto : '0'
-            );
-        }
-        $formulas_grouped_by_world[] = $mundo_data;
-    }
-
-
-    return new WP_REST_Response((object)['holguras' => $holguras, 'dataf' => $formulas_grouped_by_world], 200);
-}
-
 function get_formulas_grouped_by_world()
 {
     global $wpdb;
@@ -4134,6 +3670,8 @@ function get_formulas_grouped_by_world()
     $mundos_padres = get_posts(array(
         'post_type' => 'mundos',
         'posts_per_page' => -1,
+        'orderby' =>'title',
+        'order' => 'ASC',
         'meta_query' => array(
             array(
                 'key' => '_marca_mundo',
@@ -4162,6 +3700,8 @@ function get_formulas_grouped_by_world()
         $formulas = get_posts(array(
             'post_type' => 'formulas',
             'posts_per_page' => -1,
+            'orderby' =>'title',
+            'order' => 'ASC',
             'meta_query' => array(
                 array(
                     'key' => '_relacionar_mundos',
@@ -4188,6 +3728,8 @@ function get_formulas_grouped_by_world()
         $submundos = get_posts(array(
             'post_type' => 'mundos',
             'posts_per_page' => -1,
+            'orderby' =>'title',
+            'order' => 'ASC',
             'meta_query' => array(
                 array(
                     'key' => '_mundo_padre_id',
@@ -4212,6 +3754,8 @@ function get_formulas_grouped_by_world()
             $formulas_submundo = get_posts(array(
                 'post_type' => 'formulas',
                 'posts_per_page' => -1,
+                'orderby' =>'title',
+                'order' => 'ASC',
                 'meta_query' => array(
                     array(
                         'key' => '_relacionar_mundos',
@@ -4269,6 +3813,8 @@ function get_formulas_grouped_by_world_front()
     $mundos = get_posts(array(
         'post_type' => 'mundos',
         'posts_per_page' => -1,
+        'orderby' => 'title',  // Ordenar por el título del post
+        'order' => 'ASC' ,      // Orden ascendente (puedes cambiar a 'DESC' si lo prefieres
         'meta_query' => array(
             array(
                 'key' => '_marca_mundo',
@@ -4304,6 +3850,8 @@ function get_formulas_grouped_by_world_front()
         $formulas = get_posts(array(
             'post_type' => 'formulas',
             'posts_per_page' => -1,
+            'orderby' => 'title',  // Ordenar por el título del post
+            'order' => 'ASC',       // Orden ascendente (puedes cambiar a 'DESC' si lo prefieres
             'meta_query' => array(
                 array(
                     'key' => '_relacionar_mundos',
@@ -4335,6 +3883,8 @@ function get_formulas_grouped_by_world_front()
         $submundos = get_posts(array(
             'post_type' => 'mundos',
             'posts_per_page' => -1,
+            'orderby' => 'title',  // Ordenar por el título del post
+            'order' => 'ASC',       // Orden ascendente (puedes cambiar a 'DESC' si lo prefieres
             'meta_query' => array(
                 array(
                     'key' => '_mundo_padre_id',
@@ -4359,6 +3909,8 @@ function get_formulas_grouped_by_world_front()
             $formulas_submundo = get_posts(array(
                 'post_type' => 'formulas',
                 'posts_per_page' => -1,
+                'orderby' => 'title',  // Ordenar por el título del post
+                'order' => 'ASC',       // Orden ascendente (puedes cambiar a 'DESC' si lo prefieres
                 'meta_query' => array(
                     array(
                         'key' => '_relacionar_mundos',
@@ -4920,7 +4472,7 @@ function buscar_productos_relacionados($request)
 
     $padre  = $params['id'];
 
-    $sql = "SELECT f.*,p.post_title ,p.codigo_sap,p.cuenta, p.price, p.image_url, p.thumbnail_prod, p.post_content, p.marca,p.observacion,p.tipo, p.categorias
+    $sql = "SELECT f.*,p.post_title ,p.codigo_sap ,p.tipo_imputacion,p.cuenta, p.price, p.image_url, p.thumbnail_prod, p.post_content, p.marca,p.observacion,p.tipo, p.categorias
     FROM wp_materiales_relacionados as f
     INNER JOIN productos AS p ON f.id_material = p.id 
     WHERE f.id_padre = '$padre' AND f.cantidad_defecto > 0";
@@ -5199,6 +4751,7 @@ function buscar_formulas_relacionados($request)
                 'thumbnail_prod' => '',
                 'codigo_sap' => $producto->codigo_sap,
                 'cuenta' => $producto->cuenta,
+                'tipo_imputacion' => $producto->tipo_imputacion,
                 'categorias' => $cats_format, // Agregar las categorías del producto al resultado
                 'marca' => $producto->marca,
                 'observacion' => $producto->observacion,

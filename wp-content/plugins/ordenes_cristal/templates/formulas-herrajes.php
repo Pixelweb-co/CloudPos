@@ -441,6 +441,17 @@
         $scope.holguras = null;
         $scope.total_items = 0;
         
+        
+        $scope.$watch("window", function (newVal, oldVal) {
+      
+            console.log("mov window")
+
+
+        });
+
+
+
+
 
         // Función para agregar un item
         $scope.addItem = function(item) {

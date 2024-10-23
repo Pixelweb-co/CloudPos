@@ -172,6 +172,7 @@ $categorias = get_categories_relation_data();
                                         <div class="col-md-8">
                                             <div class="text-item-block"><b>Código: {{r.codigo_sap}} </b></div>
                                             <div class="text-item-block"><b>Cuenta: {{r.cuenta}} </b></div>
+                                            <div class="text-item-block"><b>Tipo de imputación: {{r.tipo_imputacion}} </b></div>
                                             <div class="text-item-block"><b>Cosecutivo: {{r.order}} </b></div>
                                             <div class="text-item-block">{{r.post_title}}</div>
                                             <div class="text-item-block">Catégoria:
@@ -217,6 +218,9 @@ $categorias = get_categories_relation_data();
                                     </div>
 
 
+                                </div>
+                                <div style="text-align: center; width:100%" >
+                                                <button type="button" class="btn w-80 btn-outline-generic" ng-click="cargarMas()">Cargar mas</button>
                                 </div>
                             </div>
 
